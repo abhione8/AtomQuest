@@ -1,0 +1,5 @@
+/.env.example
+/next.config.js
+/prisma
+/src
+/tsconfig.json
