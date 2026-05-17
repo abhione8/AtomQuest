@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = createToken(user.id);
+    const token = await createToken(user);
     const response = NextResponse.json(
       {
         success: true,
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     );
 
-    setAuthCookie(response, token);
+    await setAuthCookie(token);
     return response;
   } catch (error) {
     return NextResponse.json(
