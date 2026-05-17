@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: goal_tracking_db
+    environment:
+      POSTGRES_USER: goal_user
+      POSTGRES_PASSWORD: goal_password
+      POSTGRES_DB: goal_tracking_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goal_user -d goal_tracking_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: goal_tracking_app
+    environment:
+      DATABASE_URL: "postgresql://goal_user:goal_password@postgres:5432/goal_tracking_db"
+      JWT_SECRET: "demo-secret-key-change-in-production"
+      NODE_ENV: "development"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: sh -c "npm run prisma:migrate && npm run prisma:seed && npm run dev"
+
+volumes:
+  postgres_data:
