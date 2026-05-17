@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import db from '@/lib/db';
 import { GoalSheetStatus } from '@prisma/client';
 
 export const reportService = {

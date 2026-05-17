@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import db from '@/lib/db';
 
 export const sharedGoalService = {
   async createTemplate(data: {

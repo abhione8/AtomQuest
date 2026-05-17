@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db';
+import db from '@/lib/db';
 import { CheckinStatus } from '@prisma/client';
 import { calculateProgressScore } from '@/lib/progress-score';
 import { createAuditLog } from '@/lib/audit';
@@ -94,7 +94,7 @@ export const checkinService = {
     updatedBy: string,
   ) {
     const oldCheckin = await prisma.quarterlyCheckin.findUnique({
-      where: { checkinId },
+      where: { id: checkinId },
       include: { goal: true },
     });
 
