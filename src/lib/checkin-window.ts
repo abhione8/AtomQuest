@@ -66,7 +66,7 @@ export function getQuarterDateRange(
   return null;
 }
 
-export function isInQuarterWindow(quarter: Quarter, dateRange: QuarterDateRange | null): boolean {
+export function isInQuarterWindow(dateRange: QuarterDateRange | null): boolean {
   if (!dateRange) return false;
   return isWithinInterval(new Date(), {
     start: dateRange.startDate,

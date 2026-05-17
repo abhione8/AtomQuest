@@ -207,6 +207,8 @@ model Goal {
   sharedGoalId      String?
   sharedGoal        SharedGoalTemplate? @relation("primary", fields: [sharedGoalId], references: [id])
   
+  recipientAssignments SharedGoalAssignment[]
+  
   checkins          QuarterlyCheckin[]
   auditLogs         AuditLog[]
   
@@ -286,6 +288,7 @@ model QuarterlyCheckin {
   comments          String?
   
   comments_rel      CheckinComment[]
+  auditLogs         AuditLog[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -301,7 +304,7 @@ model CheckinComment {
   checkinId         String
   checkin           QuarterlyCheckin @relation(fields: [checkinId], references: [id], onDelete: Cascade)
   
-  commentBy         String    // userId
+  commentBy         String
   commentByUser     User      @relation(fields: [commentBy], references: [id])
   
   comment           String
