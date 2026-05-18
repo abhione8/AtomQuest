@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, GoalSheetStatus, UomType, Quarter, CheckinStatus, CycleStatus } from '@prisma/client';
+import { PrismaClient, UserRole, GoalSheetStatus, UomType, Quarter, CheckinStatus, CycleStatus, ApprovalActionType, AuditEntityType, AuditActionType } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -274,7 +274,7 @@ async function main() {
   await prisma.approvalAction.create({
     data: {
       goalSheetId: goalSheet2.id,
-      actionType: 'SUBMITTED',
+      actionType: ApprovalActionType.SUBMITTED,
       actionBy: employee2.id,
       comments: 'Submitting goals for Q1 2024-25',
     },
@@ -282,7 +282,7 @@ async function main() {
   await prisma.approvalAction.create({
     data: {
       goalSheetId: goalSheet3.id,
-      actionType: 'SUBMITTED',
+      actionType: ApprovalActionType.SUBMITTED,
       actionBy: employee3.id,
     },
   });
@@ -290,7 +290,7 @@ async function main() {
   await prisma.approvalAction.create({
     data: {
       goalSheetId: goalSheet3.id,
-      actionType: 'APPROVED',
+      actionType: ApprovalActionType.APPROVED,
       actionBy: manager2.id,
       comments: 'All goals approved. Good targets set.',
     },
@@ -339,18 +339,18 @@ async function main() {
   console.log('✅ Checkin comments created');
   await prisma.auditLog.create({
     data: {
-      entityType: 'GOAL_SHEET',
+      entityType: AuditEntityType.GOAL_SHEET,
       entityId: goalSheet2.id,
-      actionType: 'SUBMIT',
+      actionType: AuditActionType.SUBMIT,
       userId: employee2.id,
       goalSheetId: goalSheet2.id,
     },
   });
   await prisma.auditLog.create({
     data: {
-      entityType: 'GOAL_SHEET',
+      entityType: AuditEntityType.GOAL_SHEET,
       entityId: goalSheet3.id,
-      actionType: 'APPROVE',
+      actionType: AuditActionType.APPROVE,
       userId: manager2.id,
       goalSheetId: goalSheet3.id,
     },

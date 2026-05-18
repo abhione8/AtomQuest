@@ -1,9 +1,9 @@
 import db from '@/lib/db';
-import { UserRole, GoalSheetStatus } from '@prisma/client';
+import { UserRole, GoalSheetStatus, CheckinStatus } from '@prisma/client';
 
 export const dashboardService = {
   async getEmployeeDashboard(employeeId: string) {
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: employeeId },
       include: { goalSheets: { include: { goals: true, cycle: true } } },
     });
@@ -31,17 +31,21 @@ export const dashboardService = {
   },
 
   async getManagerDashboard(managerId: string) {
-    const manager = await prisma.user.findUnique({
+    const manager = await db.user.findUnique({
       where: { id: managerId },
-      include: { employeeProfile: { include: { directReports: true } } },
     });
 
     if (!manager) throw new Error('User not found');
 
-    const directReports = manager.employeeProfile?.directReports || [];
-    const directReportIds = directReports.map((r) => r.id);
+    // Get direct reports through ReportingManagerRelation
+    const reportingRelations = await db.reportingManagerRelation.findMany({
+      where: { managerId },
+      include: { employee: true },
+    });
 
-    const submittedSheets = await prisma.goalSheet.findMany({
+    const directReportIds = reportingRelations.map((r) => r.employeeId);
+
+    const submittedSheets = await db.goalSheet.findMany({
       where: {
         employeeId: { in: directReportIds },
         status: GoalSheetStatus.SUBMITTED,
@@ -49,65 +53,63 @@ export const dashboardService = {
       include: { employee: true, goals: true },
     });
 
-    const approvedSheets = await prisma.goalSheet.findMany({
+    const approvedSheets = await db.goalSheet.findMany({
       where: {
         employeeId: { in: directReportIds },
         status: { in: [GoalSheetStatus.APPROVED, GoalSheetStatus.LOCKED] },
       },
     });
 
-    const allEmployeeGoals = await prisma.goal.findMany({
+    const allEmployeeGoals = await db.goal.findMany({
       where: { goalSheet: { employeeId: { in: directReportIds } } },
       include: { checkins: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
 
-    const achievedGoals = allEmployeeGoals.filter((g) => g.isAchieved).length;
     const avgProgress =
       allEmployeeGoals.length > 0
-        ? allEmployeeGoals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) /
-          allEmployeeGoals.length
+        ? Math.round(allEmployeeGoals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) /
+          allEmployeeGoals.length)
         : 0;
 
     return {
       manager,
-      directReportsCount: directReports.length,
+      directReportsCount: directReportIds.length,
       pendingApprovalsCount: submittedSheets.length,
       approvedSheets: approvedSheets.length,
       totalGoalsManaged: allEmployeeGoals.length,
-      achievedGoals,
       teamAverageProgress: avgProgress,
       pendingApprovals: submittedSheets,
     };
   },
 
   async getAdminDashboard() {
-    const users = await prisma.user.findMany({
+    const users = await db.user.findMany({
       include: { department: true },
     });
     const admins = users.filter((u) => u.role === UserRole.ADMIN);
     const managers = users.filter((u) => u.role === UserRole.MANAGER);
     const employees = users.filter((u) => u.role === UserRole.EMPLOYEE);
 
-    const totalGoalSheets = await prisma.goalSheet.count();
-    const draftSheets = await prisma.goalSheet.count({ where: { status: GoalSheetStatus.DRAFT } });
-    const submittedSheets = await prisma.goalSheet.count({
+    const totalGoalSheets = await db.goalSheet.count();
+    const draftSheets = await db.goalSheet.count({ where: { status: GoalSheetStatus.DRAFT } });
+    const submittedSheets = await db.goalSheet.count({
       where: { status: GoalSheetStatus.SUBMITTED },
     });
-    const approvedSheets = await prisma.goalSheet.count({
+    const approvedSheets = await db.goalSheet.count({
       where: { status: { in: [GoalSheetStatus.APPROVED, GoalSheetStatus.LOCKED] } },
     });
 
-    const allGoals = await prisma.goal.findMany({
+    const allGoals = await db.goal.findMany({
       include: { checkins: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
-    const achievedGoals = allGoals.filter((g) => g.isAchieved).length;
+    const achievedGoals = allGoals.filter((g) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
     const avgProgress =
       allGoals.length > 0
         ? allGoals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) /
           allGoals.length
         : 0;
 
-    const departments = await prisma.department.findMany();
+    const departments = await db.department.findMany();
 
     return {
       usersStats: {
@@ -127,7 +129,7 @@ export const dashboardService = {
         averageProgress: avgProgress,
       },
       departmentsCount: departments.length,
-      recentCycles: await prisma.goalCycle.findMany({
+      recentCycles: await db.goalCycle.findMany({
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
@@ -135,7 +137,7 @@ export const dashboardService = {
   },
 
   async getDepartmentStats(departmentId: string) {
-    const department = await prisma.department.findUnique({
+    const department = await db.department.findUnique({
       where: { id: departmentId },
       include: { users: true },
     });
@@ -143,13 +145,13 @@ export const dashboardService = {
     if (!department) throw new Error('Department not found');
 
     const deptUserIds = department.users.map((u) => u.id);
-    const sheets = await prisma.goalSheet.findMany({
+    const sheets = await db.goalSheet.findMany({
       where: { employeeId: { in: deptUserIds } },
-      include: { employee: true, goals: true },
+      include: { employee: true, goals: { include: { checkins: { take: 1, orderBy: { createdAt: 'desc' } } } } },
     });
 
     const goals = sheets.flatMap((s) => s.goals);
-    const achievedGoals = goals.filter((g) => g.isAchieved).length;
+    const achievedGoals = goals.filter((g) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
 
     return {
       department,
@@ -162,19 +164,19 @@ export const dashboardService = {
   },
 
   async getCycleStats(cycleId: string) {
-    const cycle = await prisma.goalCycle.findUnique({
+    const cycle = await db.goalCycle.findUnique({
       where: { id: cycleId },
     });
 
     if (!cycle) throw new Error('Cycle not found');
 
-    const sheets = await prisma.goalSheet.findMany({
+    const sheets = await db.goalSheet.findMany({
       where: { cycleId },
-      include: { goals: true },
+      include: { goals: { include: { checkins: { take: 1, orderBy: { createdAt: 'desc' } } } } },
     });
 
     const goals = sheets.flatMap((s) => s.goals);
-    const achievedGoals = goals.filter((g) => g.isAchieved).length;
+    const achievedGoals = goals.filter((g) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
 
     return {
       cycle,
@@ -193,20 +195,20 @@ export const dashboardService = {
   },
 
   async getQuickStats() {
-    const activeCycle = await prisma.goalCycle.findFirst({
+    const activeCycle = await db.goalCycle.findFirst({
       orderBy: { createdAt: 'desc' },
     });
 
-    const pendingApprovals = await prisma.goalSheet.count({
+    const pendingApprovals = await db.goalSheet.count({
       where: { status: GoalSheetStatus.SUBMITTED },
     });
 
-    const pendingCheckins = await prisma.quarterlyCheckin.count({
-      where: { status: 'DRAFT' },
+    const pendingCheckins = await db.quarterlyCheckin.count({
+      where: { status: CheckinStatus.NOT_STARTED },
     });
 
-    const totalUsers = await prisma.user.count();
-    const totalDepartments = await prisma.department.count();
+    const totalUsers = await db.user.count();
+    const totalDepartments = await db.department.count();
 
     return {
       activeCycle,
@@ -218,14 +220,14 @@ export const dashboardService = {
   },
 
   async getUserActivityFeed(userId: string, limit: number = 20) {
-    const auditLogs = await prisma.auditLog.findMany({
+    const auditLogs = await db.auditLog.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
 
     return auditLogs.map((log) => ({
-      action: log.action,
+      action: log.actionType,
       entity: log.entityType,
       timestamp: log.createdAt,
       changes: log.changes,

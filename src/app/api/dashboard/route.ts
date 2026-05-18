@@ -3,7 +3,7 @@ import { getSession, requireRole } from '@/lib/session';
 import { dashboardService } from '@/services';
 import { UserRole } from '@prisma/client';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {

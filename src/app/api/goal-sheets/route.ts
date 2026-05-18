@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { goalSheetService } from '@/services';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
@@ -30,8 +30,6 @@ export async function POST(request: NextRequest) {
     const sheet = await goalSheetService.createGoalSheet({
       employeeId: session.id,
       cycleId: body.cycleId,
-      title: body.title,
-      objectives: body.objectives,
     });
 
     return NextResponse.json({ success: true, data: sheet }, { status: 201 });

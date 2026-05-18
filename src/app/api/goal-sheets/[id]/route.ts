@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 import { goalSheetService } from '@/services';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
@@ -26,30 +26,8 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const sheet = await goalSheetService.updateGoalSheet(params.id, body);
-
-    return NextResponse.json({ success: true, data: sheet }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 },
-    );
-  }
-}
-
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {

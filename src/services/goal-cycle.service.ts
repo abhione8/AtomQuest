@@ -1,51 +1,54 @@
 import db from '@/lib/db';
-import { CycleStatus, Quarter } from '@prisma/client';
+import { CycleStatus, GoalSheetStatus } from '@prisma/client';
 
 export const goalCycleService = {
   async createCycle(data: {
     name: string;
-    quarter: Quarter;
-    year: number;
     startDate: Date;
     endDate: Date;
-    submissionDeadline: Date;
+    q1StartDate?: Date;
+    q1EndDate?: Date;
+    q2StartDate?: Date;
+    q2EndDate?: Date;
+    q3StartDate?: Date;
+    q3EndDate?: Date;
+    q4StartDate?: Date;
+    q4EndDate?: Date;
   }) {
-    return prisma.goalCycle.create({
+    return db.goalCycle.create({
       data: {
         name: data.name,
-        quarter: data.quarter,
-        year: data.year,
         startDate: data.startDate,
         endDate: data.endDate,
-        submissionDeadline: data.submissionDeadline,
-        status: CycleStatus.ACTIVE,
+        q1StartDate: data.q1StartDate,
+        q1EndDate: data.q1EndDate,
+        q2StartDate: data.q2StartDate,
+        q2EndDate: data.q2EndDate,
+        q3StartDate: data.q3StartDate,
+        q3EndDate: data.q3EndDate,
+        q4StartDate: data.q4StartDate,
+        q4EndDate: data.q4EndDate,
+        status: CycleStatus.DRAFT,
       },
     });
   },
 
   async getCycleById(cycleId: string) {
-    return prisma.goalCycle.findUnique({
+    return db.goalCycle.findUnique({
       where: { id: cycleId },
       include: { goalSheets: true },
     });
   },
 
   async getActiveCycle() {
-    return prisma.goalCycle.findFirst({
+    return db.goalCycle.findFirst({
       where: { status: CycleStatus.ACTIVE },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async getCyclesByYear(year: number) {
-    return prisma.goalCycle.findMany({
-      where: { year },
-      orderBy: { quarter: 'asc' },
-    });
-  },
-
   async getAllCycles(skip?: number, take?: number) {
-    return prisma.goalCycle.findMany({
+    return db.goalCycle.findMany({
       orderBy: { createdAt: 'desc' },
       skip,
       take,
@@ -54,28 +57,35 @@ export const goalCycleService = {
   },
 
   async updateCycleStatus(cycleId: string, status: CycleStatus) {
-    return prisma.goalCycle.update({
+    return db.goalCycle.update({
       where: { id: cycleId },
       data: { status },
     });
   },
 
+  async activateCycle(cycleId: string) {
+    return db.goalCycle.update({
+      where: { id: cycleId },
+      data: { status: CycleStatus.ACTIVE },
+    });
+  },
+
   async closeCycle(cycleId: string) {
-    return prisma.goalCycle.update({
+    return db.goalCycle.update({
       where: { id: cycleId },
       data: { status: CycleStatus.CLOSED },
     });
   },
 
   async getCycleProgressStats(cycleId: string) {
-    const totalSheets = await prisma.goalSheet.count({
+    const totalSheets = await db.goalSheet.count({
       where: { cycleId },
     });
-    const submittedSheets = await prisma.goalSheet.count({
-      where: { cycleId, status: { in: ['SUBMITTED', 'APPROVED', 'LOCKED'] } },
+    const submittedSheets = await db.goalSheet.count({
+      where: { cycleId, status: { in: [GoalSheetStatus.SUBMITTED, GoalSheetStatus.APPROVED, GoalSheetStatus.LOCKED] } },
     });
-    const approvedSheets = await prisma.goalSheet.count({
-      where: { cycleId, status: 'APPROVED' },
+    const approvedSheets = await db.goalSheet.count({
+      where: { cycleId, status: { in: [GoalSheetStatus.APPROVED, GoalSheetStatus.LOCKED] } },
     });
     return {
       totalSheets,
@@ -86,8 +96,8 @@ export const goalCycleService = {
     };
   },
 
-  async isSubmissionDeadlinePassed(cycleId: string): Promise<boolean> {
-    const cycle = await prisma.goalCycle.findUnique({ where: { id: cycleId } });
-    return cycle ? new Date() > cycle.submissionDeadline : false;
+  async isWithinCycleDates(cycleId: string, checkDate: Date = new Date()): Promise<boolean> {
+    const cycle = await db.goalCycle.findUnique({ where: { id: cycleId } });
+    return cycle ? checkDate >= cycle.startDate && checkDate <= cycle.endDate : false;
   },
 };

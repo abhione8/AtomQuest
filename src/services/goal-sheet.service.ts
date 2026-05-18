@@ -1,20 +1,16 @@
 import db from '@/lib/db';
-import { GoalSheetStatus } from '@prisma/client';
+import { GoalSheetStatus, AuditEntityType, AuditActionType } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit';
 
 export const goalSheetService = {
   async createGoalSheet(data: {
     employeeId: string;
     cycleId: string;
-    title: string;
-    objectives?: string;
   }) {
-    return prisma.goalSheet.create({
+    return db.goalSheet.create({
       data: {
         employeeId: data.employeeId,
         cycleId: data.cycleId,
-        title: data.title,
-        objectives: data.objectives,
         status: GoalSheetStatus.DRAFT,
       },
       include: { goals: true, cycle: true },
@@ -22,88 +18,97 @@ export const goalSheetService = {
   },
 
   async getGoalSheetById(sheetId: string) {
-    return prisma.goalSheet.findUnique({
+    return db.goalSheet.findUnique({
       where: { id: sheetId },
       include: {
         employee: true,
         cycle: true,
         goals: { include: { checkins: true } },
-        approvalAction: true,
+        approvalActions: true,
       },
     });
   },
 
   async getEmployeeGoalSheets(employeeId: string) {
-    return prisma.goalSheet.findMany({
+    return db.goalSheet.findMany({
       where: { employeeId },
-      include: { cycle: true, goals: true, approvalAction: true },
+      include: { cycle: true, goals: true, approvalActions: true },
       orderBy: { createdAt: 'desc' },
     });
   },
 
   async getGoalSheetsByCycle(cycleId: string) {
-    return prisma.goalSheet.findMany({
+    return db.goalSheet.findMany({
       where: { cycleId },
-      include: { employee: true, goals: true, approvalAction: true },
+      include: { employee: true, goals: true, approvalActions: true },
     });
   },
 
   async getGoalSheetsByStatus(status: GoalSheetStatus) {
-    return prisma.goalSheet.findMany({
+    return db.goalSheet.findMany({
       where: { status },
       include: { employee: true, cycle: true },
     });
   },
 
   async submitGoalSheet(sheetId: string, submittedBy: string) {
-    const sheet = await prisma.goalSheet.update({
+    const sheet = await db.goalSheet.update({
       where: { id: sheetId },
       data: { status: GoalSheetStatus.SUBMITTED, submittedAt: new Date() },
       include: { employee: true, goals: true },
     });
     await createAuditLog({
-      entityType: 'GoalSheet',
+      entityType: AuditEntityType.GOAL_SHEET,
       entityId: sheetId,
-      action: 'SUBMIT',
+      actionType: AuditActionType.SUBMIT,
       userId: submittedBy,
-      changes: { status: 'SUBMITTED' },
+      goalSheetId: sheetId,
     });
     return sheet;
   },
 
-  async updateGoalSheet(sheetId: string, data: { title?: string; objectives?: string }) {
-    return prisma.goalSheet.update({
-      where: { id: sheetId },
-      data,
-      include: { goals: true },
-    });
-  },
-
   async lockGoalSheet(sheetId: string) {
-    return prisma.goalSheet.update({
+    return db.goalSheet.update({
       where: { id: sheetId },
-      data: { status: GoalSheetStatus.LOCKED },
+      data: { status: GoalSheetStatus.LOCKED, lockedAt: new Date(), isLocked: true },
     });
   },
 
-  async unlockGoalSheet(sheetId: string) {
-    return prisma.goalSheet.update({
+  async unlockGoalSheet(sheetId: string, unlockedBy: string) {
+    const sheet = await db.goalSheet.update({
       where: { id: sheetId },
-      data: { status: GoalSheetStatus.APPROVED },
+      data: { status: GoalSheetStatus.DRAFT, unlockedAt: new Date(), isLocked: false },
     });
+    
+    await createAuditLog({
+      entityType: AuditEntityType.GOAL_SHEET,
+      entityId: sheetId,
+      actionType: AuditActionType.UNLOCK,
+      userId: unlockedBy,
+      goalSheetId: sheetId,
+    });
+    
+    return sheet;
   },
 
   async deleteGoalSheet(sheetId: string) {
-    return prisma.goalSheet.delete({
+    return db.goalSheet.delete({
       where: { id: sheetId },
     });
   },
 
   async getManagerPendingApprovals(managerId: string) {
-    return prisma.goalSheet.findMany({
+    const directReportIds = (
+      await db.reportingManagerRelation.findMany({
+        where: { managerId },
+        select: { employeeId: true },
+      })
+    ).map((r) => r.employeeId);
+
+    return db.goalSheet.findMany({
       where: {
         status: GoalSheetStatus.SUBMITTED,
-        employee: { employeeProfile: { reportingManagerId: managerId } },
+        employeeId: { in: directReportIds },
       },
       include: {
         employee: true,
@@ -114,7 +119,7 @@ export const goalSheetService = {
   },
 
   async getGoalSheetWithCheckins(sheetId: string) {
-    return prisma.goalSheet.findUnique({
+    return db.goalSheet.findUnique({
       where: { id: sheetId },
       include: {
         goals: {
@@ -130,7 +135,7 @@ export const goalSheetService = {
   },
 
   async countGoalSheetsByStatus(status: GoalSheetStatus): Promise<number> {
-    return prisma.goalSheet.count({
+    return db.goalSheet.count({
       where: { status },
     });
   },

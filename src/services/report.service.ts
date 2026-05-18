@@ -3,7 +3,7 @@ import { GoalSheetStatus } from '@prisma/client';
 
 export const reportService = {
   async getGoalSheetReport(sheetId: string) {
-    const sheet = await prisma.goalSheet.findUnique({
+    const sheet = await db.goalSheet.findUnique({
       where: { id: sheetId },
       include: {
         employee: true,
@@ -14,17 +14,17 @@ export const reportService = {
             recipientAssignments: true,
           },
         },
-        approvalAction: true,
+        approvalActions: true,
       },
     });
 
     if (!sheet) throw new Error('Goal sheet not found');
 
     const totalGoals = sheet.goals.length;
-    const achievedGoals = sheet.goals.filter((g) => g.isAchieved).length;
+    const achievedGoals = sheet.goals.filter((g: any) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
     const avgProgress =
       sheet.goals.length > 0
-        ? sheet.goals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) /
+        ? sheet.goals.reduce((sum, g: any) => sum + (g.checkins[0]?.progressScore || 0), 0) /
           sheet.goals.length
         : 0;
 
@@ -38,7 +38,7 @@ export const reportService = {
   },
 
   async getCycleReport(cycleId: string) {
-    const sheets = await prisma.goalSheet.findMany({
+    const sheets = await db.goalSheet.findMany({
       where: { cycleId },
       include: {
         employee: true,
@@ -47,7 +47,7 @@ export const reportService = {
             checkins: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
         },
-        approvalAction: true,
+        approvalActions: true,
       },
     });
 
@@ -56,15 +56,15 @@ export const reportService = {
     const lockedSheets = sheets.filter((s) => s.status === GoalSheetStatus.LOCKED).length;
 
     const allGoals = sheets.flatMap((s) => s.goals);
-    const achievedGoals = allGoals.filter((g) => g.isAchieved).length;
+    const achievedGoals = allGoals.filter((g: any) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
     const avgProgress =
       allGoals.length > 0
-        ? allGoals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) /
+        ? allGoals.reduce((sum, g: any) => sum + (g.checkins[0]?.progressScore || 0), 0) /
           allGoals.length
         : 0;
 
     return {
-      cycle: await prisma.goalCycle.findUnique({ where: { id: cycleId } }),
+      cycle: await db.goalCycle.findUnique({ where: { id: cycleId } }),
       totalSheets,
       approvedSheets,
       lockedSheets,
@@ -77,7 +77,7 @@ export const reportService = {
   },
 
   async getDepartmentReport(departmentId: string, cycleId: string) {
-    const sheets = await prisma.goalSheet.findMany({
+    const sheets = await db.goalSheet.findMany({
       where: {
         cycleId,
         employee: { departmentId },
@@ -92,7 +92,7 @@ export const reportService = {
       },
     });
 
-    const employees = await prisma.user.findMany({
+    const employees = await db.user.findMany({
       where: { departmentId },
     });
 
@@ -105,7 +105,7 @@ export const reportService = {
       const sheet = sheetsByEmployee.get(emp.id);
       if (!sheet) return { employee: emp, sheetCount: 0, goalCount: 0, achievementPercentage: 0 };
 
-      const achievedGoals = sheet.goals.filter((g) => g.isAchieved).length;
+      const achievedGoals = sheet.goals.filter((g: any) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
       return {
         employee: emp,
         sheetCount: 1,
@@ -116,7 +116,7 @@ export const reportService = {
     });
 
     return {
-      department: await prisma.department.findUnique({ where: { id: departmentId } }),
+      department: await db.department.findUnique({ where: { id: departmentId } }),
       totalEmployees: employees.length,
       employeesWithSheets: sheets.length,
       totalGoals: sheets.flatMap((s) => s.goals).length,
@@ -125,7 +125,7 @@ export const reportService = {
   },
 
   async getEmployeeHistoryReport(employeeId: string) {
-    const sheets = await prisma.goalSheet.findMany({
+    const sheets = await db.goalSheet.findMany({
       where: { employeeId },
       include: {
         cycle: true,
@@ -134,17 +134,17 @@ export const reportService = {
             checkins: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
         },
-        approvalAction: true,
+        approvalActions: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return sheets.map((sheet) => {
       const goals = sheet.goals;
-      const achievedGoals = goals.filter((g) => g.isAchieved).length;
+      const achievedGoals = goals.filter((g: any) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
       const avgProgress =
         goals.length > 0
-          ? goals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) / goals.length
+          ? goals.reduce((sum, g: any) => sum + (g.checkins[0]?.progressScore || 0), 0) / goals.length
           : 0;
 
       return {
@@ -155,13 +155,13 @@ export const reportService = {
         achievementPercentage: (achievedGoals / goals.length) * 100,
         averageProgress: avgProgress,
         submittedAt: sheet.submittedAt,
-        approvedAt: sheet.approvalAction?.approvalDate,
+        approvedAt: sheet.approvedAt,
       };
     });
   },
 
   async getGoalProgressTrend(goalId: string) {
-    const checkins = await prisma.quarterlyCheckin.findMany({
+    const checkins = await db.quarterlyCheckin.findMany({
       where: { goalId },
       orderBy: { createdAt: 'asc' },
       include: { goal: true },
@@ -169,14 +169,14 @@ export const reportService = {
 
     return checkins.map((c) => ({
       quarter: c.quarter,
-      currentValue: c.currentValue,
+      currentValue: c.actualValue,
       progressScore: c.progressScore,
       date: c.createdAt,
     }));
   },
 
   async getTopPerformers(cycleId: string, limit: number = 10) {
-    const sheets = await prisma.goalSheet.findMany({
+    const sheets = await db.goalSheet.findMany({
       where: { cycleId },
       include: {
         employee: true,
@@ -191,10 +191,10 @@ export const reportService = {
     const performers = sheets
       .map((sheet) => {
         const goals = sheet.goals;
-        const achievedGoals = goals.filter((g) => g.isAchieved).length;
+        const achievedGoals = goals.filter((g: any) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
         const avgProgress =
           goals.length > 0
-            ? goals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) / goals.length
+            ? goals.reduce((sum, g: any) => sum + (g.checkins[0]?.progressScore || 0), 0) / goals.length
             : 0;
 
         return {
@@ -212,8 +212,8 @@ export const reportService = {
   },
 
   async generateSummaryStats(cycleId: string) {
-    const cycle = await prisma.goalCycle.findUnique({ where: { id: cycleId } });
-    const sheets = await prisma.goalSheet.findMany({
+    const cycle = await db.goalCycle.findUnique({ where: { id: cycleId } });
+    const sheets = await db.goalSheet.findMany({
       where: { cycleId },
       include: {
         goals: {
@@ -225,10 +225,10 @@ export const reportService = {
     });
 
     const allGoals = sheets.flatMap((s) => s.goals);
-    const achievedGoals = allGoals.filter((g) => g.isAchieved).length;
+    const achievedGoals = allGoals.filter((g: any) => (g.checkins[0]?.progressScore ?? 0) === 100).length;
     const avgProgress =
       allGoals.length > 0
-        ? allGoals.reduce((sum, g) => sum + (g.checkins[0]?.progressScore || 0), 0) /
+        ? allGoals.reduce((sum, g: any) => sum + (g.checkins[0]?.progressScore || 0), 0) /
           allGoals.length
         : 0;
 

@@ -3,64 +3,65 @@ import { UserRole } from '@prisma/client';
 
 export const userService = {
   async getUserById(userId: string) {
-    return prisma.user.findUnique({
+    return db.user.findUnique({
       where: { id: userId },
       include: { employeeProfile: true, department: true },
     });
   },
 
   async getUserByEmail(email: string) {
-    return prisma.user.findUnique({
+    return db.user.findUnique({
       where: { email },
       include: { employeeProfile: true },
     });
   },
 
   async getEmployeeManager(employeeId: string) {
-    const employee = await prisma.user.findUnique({
-      where: { id: employeeId },
-      include: { employeeProfile: { include: { reportingManager: true } } },
+    const manager = await db.reportingManagerRelation.findFirst({
+      where: { employeeId },
+      include: { manager: true },
     });
-    return employee?.employeeProfile?.reportingManager || null;
+    return manager?.manager || null;
   },
 
   async getManagerDirectReports(managerId: string) {
-    return prisma.user.findMany({
-      where: { employeeProfile: { reportingManagerId: managerId } },
-      include: { employeeProfile: true, department: true },
+    const relations = await db.reportingManagerRelation.findMany({
+      where: { managerId },
+      include: { employee: { include: { employeeProfile: true, department: true } } },
     });
+    return relations.map((r) => r.employee);
   },
 
   async getAllAdmins() {
-    return prisma.user.findMany({
+    return db.user.findMany({
       where: { role: UserRole.ADMIN },
       include: { department: true },
     });
   },
 
   async getAllManagers() {
-    return prisma.user.findMany({
+    return db.user.findMany({
       where: { role: UserRole.MANAGER },
       include: { department: true },
     });
   },
 
   async getUsersByDepartment(departmentId: string) {
-    return prisma.user.findMany({
+    return db.user.findMany({
       where: { departmentId },
       include: { employeeProfile: true },
     });
   },
 
   async getUsersByRole(role: UserRole) {
-    return prisma.user.findMany({
+    return db.user.findMany({
       where: { role },
       include: { department: true, employeeProfile: true },
     });
   },
 
   async updateUserProfile(userId: string, data: { name?: string; email?: string }) {
-    return prisma.user.update({
+    return db.user.update({
       where: { id: userId },
       data,
       include: { employeeProfile: true },
@@ -68,18 +69,18 @@ export const userService = {
   },
 
   async countUsersByRole() {
-    const admins = await prisma.user.count({ where: { role: UserRole.ADMIN } });
-    const managers = await prisma.user.count({ where: { role: UserRole.MANAGER } });
-    const employees = await prisma.user.count({ where: { role: UserRole.EMPLOYEE } });
+    const admins = await db.user.count({ where: { role: UserRole.ADMIN } });
+    const managers = await db.user.count({ where: { role: UserRole.MANAGER } });
+    const employees = await db.user.count({ where: { role: UserRole.EMPLOYEE } });
     return { admins, managers, employees };
   },
 
   async getUserWithGoalSheets(userId: string) {
-    return prisma.user.findUnique({
+    return db.user.findUnique({
       where: { id: userId },
       include: {
         goalSheets: { include: { goals: true } },
-        employeeProfile: { include: { reportingManager: true } },
+        employeeProfile: true,
       },
     });
   },

@@ -98,7 +98,7 @@ export function getCurrentQuarter(
 
   for (const quarter of quarters) {
     const range = getQuarterDateRange(quarter, cycleData);
-    if (range && isInQuarterWindow(quarter, range)) {
+    if (range && isInQuarterWindow(range)) {
       return quarter;
     }
   }

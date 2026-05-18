@@ -1,55 +1,58 @@
 import db from '@/lib/db';
-import { UomType } from '@prisma/client';
+import { UomType, AuditEntityType, AuditActionType } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit';
 
 export const goalService = {
   async createGoal(data: {
     goalSheetId: string;
     thrustArea: string;
+    title: string;
     description: string;
     uomType: UomType;
-    targetValue: number;
-    baseline?: number;
+    target: number;
+    baselineValue?: number;
     weightage: number;
     createdBy: string;
   }) {
-    const goal = await prisma.goal.create({
+    const goal = await db.goal.create({
       data: {
         goalSheetId: data.goalSheetId,
         thrustArea: data.thrustArea,
+        title: data.title,
         description: data.description,
         uomType: data.uomType,
-        targetValue: data.targetValue,
-        baseline: data.baseline,
+        target: data.target,
+        baselineValue: data.baselineValue,
         weightage: data.weightage,
       },
       include: { checkins: true },
     });
 
     await createAuditLog({
-      entityType: 'Goal',
+      entityType: AuditEntityType.GOAL,
       entityId: goal.id,
-      action: 'CREATE',
+      actionType: AuditActionType.CREATE,
       userId: data.createdBy,
-      changes: { thrustArea: data.thrustArea, uomType: data.uomType },
+      goalId: goal.id,
+      goalSheetId: data.goalSheetId,
     });
 
     return goal;
   },
 
   async getGoalById(goalId: string) {
-    return prisma.goal.findUnique({
+    return db.goal.findUnique({
       where: { id: goalId },
       include: {
         goalSheet: { include: { employee: true } },
         checkins: { orderBy: { createdAt: 'desc' } },
-        recipientAssignments: { include: { assignee: true } },
+        recipientAssignments: true,
       },
     });
   },
 
   async getGoalSheetGoals(sheetId: string) {
-    return prisma.goal.findMany({
+    return db.goal.findMany({
       where: { goalSheetId: sheetId },
       include: { checkins: true, recipientAssignments: true },
       orderBy: { createdAt: 'asc' },
@@ -60,40 +63,41 @@ export const goalService = {
     goalId: string,
     data: {
       thrustArea?: string;
+      title?: string;
       description?: string;
-      targetValue?: number;
-      baseline?: number;
+      target?: number;
+      baselineValue?: number;
       weightage?: number;
     },
     updatedBy: string,
   ) {
-    const oldGoal = await prisma.goal.findUnique({ where: { id: goalId } });
-    const goal = await prisma.goal.update({
+    const oldGoal = await db.goal.findUnique({ where: { id: goalId } });
+    const goal = await db.goal.update({
       where: { id: goalId },
       data,
       include: { checkins: true },
     });
 
     await createAuditLog({
-      entityType: 'Goal',
+      entityType: AuditEntityType.GOAL,
       entityId: goalId,
-      action: 'UPDATE',
+      actionType: AuditActionType.UPDATE,
       userId: updatedBy,
-      changes: data,
+      goalId: goalId,
     });
 
     return goal;
   },
 
   async deleteGoal(goalId: string, deletedBy: string) {
-    const goal = await prisma.goal.delete({
+    const goal = await db.goal.delete({
       where: { id: goalId },
     });
 
     await createAuditLog({
-      entityType: 'Goal',
+      entityType: AuditEntityType.GOAL,
       entityId: goalId,
-      action: 'DELETE',
+      actionType: AuditActionType.DELETE,
       userId: deletedBy,
     });
 
@@ -101,14 +105,14 @@ export const goalService = {
   },
 
   async getGoalsByUomType(uomType: UomType) {
-    return prisma.goal.findMany({
+    return db.goal.findMany({
       where: { uomType },
       include: { goalSheet: true, checkins: true },
     });
   },
 
   async calculateGoalSheetTotalWeightage(sheetId: string): Promise<number> {
-    const goals = await prisma.goal.findMany({
+    const goals = await db.goal.findMany({
       where: { goalSheetId: sheetId },
       select: { weightage: true },
     });
@@ -116,7 +120,7 @@ export const goalService = {
   },
 
   async getGoalsWithoutCheckins(sheetId: string) {
-    const goals = await prisma.goal.findMany({
+    const goals = await db.goal.findMany({
       where: { goalSheetId: sheetId },
       include: { checkins: true },
     });
@@ -124,7 +128,7 @@ export const goalService = {
   },
 
   async getHighestWeightageGoals(sheetId: string, limit: number = 3) {
-    return prisma.goal.findMany({
+    return db.goal.findMany({
       where: { goalSheetId: sheetId },
       orderBy: { weightage: 'desc' },
       take: limit,
@@ -132,13 +136,13 @@ export const goalService = {
   },
 
   async countGoalsBySheet(sheetId: string): Promise<number> {
-    return prisma.goal.count({
+    return db.goal.count({
       where: { goalSheetId: sheetId },
     });
   },
 
   async getGoalCountByThrustArea(sheetId: string) {
-    const goals = await prisma.goal.findMany({
+    const goals = await db.goal.findMany({
       where: { goalSheetId: sheetId },
       select: { thrustArea: true },
     });

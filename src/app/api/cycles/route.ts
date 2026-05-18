@@ -40,7 +40,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cycle = await goalCycleService.createCycle(validation.data);
+    const cycle = await goalCycleService.createCycle({
+      ...validation.data,
+      startDate: new Date(validation.data.startDate),
+      endDate: new Date(validation.data.endDate),
+      q1StartDate: validation.data.q1StartDate ? new Date(validation.data.q1StartDate) : undefined,
+      q1EndDate: validation.data.q1EndDate ? new Date(validation.data.q1EndDate) : undefined,
+      q2StartDate: validation.data.q2StartDate ? new Date(validation.data.q2StartDate) : undefined,
+      q2EndDate: validation.data.q2EndDate ? new Date(validation.data.q2EndDate) : undefined,
+      q3StartDate: validation.data.q3StartDate ? new Date(validation.data.q3StartDate) : undefined,
+      q3EndDate: validation.data.q3EndDate ? new Date(validation.data.q3EndDate) : undefined,
+      q4StartDate: validation.data.q4StartDate ? new Date(validation.data.q4StartDate) : undefined,
+      q4EndDate: validation.data.q4EndDate ? new Date(validation.data.q4EndDate) : undefined,
+    });
     return NextResponse.json({ success: true, data: cycle }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Textarea, Select } from '@/components/ui';
 
@@ -15,7 +15,7 @@ export default function CreateGoalSheetPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useState(() => {
+  useEffect(() => {
     const fetchCycles = async () => {
       try {
         const res = await fetch('/api/cycles');

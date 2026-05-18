@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session';
 import { goalCycleService } from '@/services';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {

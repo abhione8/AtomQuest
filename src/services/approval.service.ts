@@ -1,178 +1,151 @@
 import db from '@/lib/db';
-import { ApprovalStatus, GoalSheetStatus } from '@prisma/client';
+import { ApprovalActionType, GoalSheetStatus, AuditEntityType, AuditActionType } from '@prisma/client';
 import { createAuditLog } from '@/lib/audit';
 
 export const approvalService = {
   async createApprovalAction(data: {
     goalSheetId: string;
-    approvedBy: string;
-    status: ApprovalStatus;
+    actionBy: string;
+    actionType: ApprovalActionType;
     comments?: string;
   }) {
-    return prisma.approvalAction.create({
+    return db.approvalAction.create({
       data: {
         goalSheetId: data.goalSheetId,
-        approvedBy: data.approvedBy,
-        status: data.status,
+        actionBy: data.actionBy,
+        actionType: data.actionType,
         comments: data.comments,
-        approvalDate: new Date(),
       },
-      include: { approver: true, goalSheet: true },
+      include: { actionByUser: true, goalSheet: true },
     });
   },
 
   async getApprovalForSheet(sheetId: string) {
-    return prisma.approvalAction.findFirst({
+    return db.approvalAction.findFirst({
       where: { goalSheetId: sheetId },
-      include: { approver: true },
+      include: { actionByUser: true },
       orderBy: { createdAt: 'desc' },
     });
   },
 
   async approveGoalSheet(sheetId: string, approverId: string, comments?: string) {
-    const sheet = await prisma.goalSheet.update({
+    const sheet = await db.goalSheet.update({
       where: { id: sheetId },
-      data: { status: GoalSheetStatus.APPROVED },
+      data: { status: GoalSheetStatus.APPROVED, approvedAt: new Date() },
       include: { employee: true, goals: true },
     });
 
-    await prisma.approvalAction.create({
+    await db.approvalAction.create({
       data: {
         goalSheetId: sheetId,
-        approvedBy: approverId,
-        status: ApprovalStatus.APPROVED,
+        actionBy: approverId,
+        actionType: ApprovalActionType.APPROVED,
         comments,
-        approvalDate: new Date(),
       },
     });
 
     await createAuditLog({
-      entityType: 'GoalSheet',
+      entityType: AuditEntityType.GOAL_SHEET,
       entityId: sheetId,
-      action: 'APPROVE',
+      actionType: AuditActionType.APPROVE,
       userId: approverId,
-      changes: { status: 'APPROVED', approverComments: comments },
+      goalSheetId: sheetId,
     });
 
     return sheet;
   },
 
   async returnGoalSheet(sheetId: string, approverId: string, reason: string) {
-    const sheet = await prisma.goalSheet.update({
+    const sheet = await db.goalSheet.update({
       where: { id: sheetId },
-      data: { status: GoalSheetStatus.DRAFT },
+      data: { status: GoalSheetStatus.RETURNED },
       include: { employee: true, goals: true },
     });
 
-    await prisma.approvalAction.create({
+    await db.approvalAction.create({
       data: {
         goalSheetId: sheetId,
-        approvedBy: approverId,
-        status: ApprovalStatus.RETURNED,
+        actionBy: approverId,
+        actionType: ApprovalActionType.RETURNED,
         comments: reason,
-        approvalDate: new Date(),
       },
     });
 
     await createAuditLog({
-      entityType: 'GoalSheet',
+      entityType: AuditEntityType.GOAL_SHEET,
       entityId: sheetId,
-      action: 'RETURN',
+      actionType: AuditActionType.RETURN,
       userId: approverId,
-      changes: { status: 'DRAFT', returnReason: reason },
-    });
-
-    return sheet;
-  },
-
-  async rejectGoalSheet(sheetId: string, approverId: string, reason: string) {
-    const sheet = await prisma.goalSheet.update({
-      where: { id: sheetId },
-      data: { status: GoalSheetStatus.DRAFT },
-      include: { employee: true, goals: true },
-    });
-
-    await prisma.approvalAction.create({
-      data: {
-        goalSheetId: sheetId,
-        approvedBy: approverId,
-        status: ApprovalStatus.REJECTED,
-        comments: reason,
-        approvalDate: new Date(),
-      },
-    });
-
-    await createAuditLog({
-      entityType: 'GoalSheet',
-      entityId: sheetId,
-      action: 'REJECT',
-      userId: approverId,
-      changes: { status: 'DRAFT', rejectionReason: reason },
+      goalSheetId: sheetId,
     });
 
     return sheet;
   },
 
   async unlockGoalSheet(sheetId: string, unlockedBy: string) {
-    const sheet = await prisma.goalSheet.update({
+    const sheet = await db.goalSheet.update({
       where: { id: sheetId },
-      data: { status: GoalSheetStatus.APPROVED },
+      data: { status: GoalSheetStatus.DRAFT, unlockedAt: new Date() },
       include: { employee: true },
     });
 
     await createAuditLog({
-      entityType: 'GoalSheet',
+      entityType: AuditEntityType.GOAL_SHEET,
       entityId: sheetId,
-      action: 'UNLOCK',
+      actionType: AuditActionType.UNLOCK,
       userId: unlockedBy,
-      changes: { status: 'APPROVED' },
+      goalSheetId: sheetId,
     });
 
     return sheet;
   },
 
   async getApprovalHistory(sheetId: string) {
-    return prisma.approvalAction.findMany({
+    return db.approvalAction.findMany({
       where: { goalSheetId: sheetId },
-      include: { approver: true },
+      include: { actionByUser: true },
       orderBy: { createdAt: 'asc' },
     });
   },
 
   async getManagerApprovalsCount(managerId: string) {
-    const approved = await prisma.approvalAction.count({
-      where: { approvedBy: managerId, status: ApprovalStatus.APPROVED },
+    const approved = await db.approvalAction.count({
+      where: { actionBy: managerId, actionType: ApprovalActionType.APPROVED },
     });
-    const returned = await prisma.approvalAction.count({
-      where: { approvedBy: managerId, status: ApprovalStatus.RETURNED },
+    const returned = await db.approvalAction.count({
+      where: { actionBy: managerId, actionType: ApprovalActionType.RETURNED },
     });
-    const rejected = await prisma.approvalAction.count({
-      where: { approvedBy: managerId, status: ApprovalStatus.REJECTED },
-    });
-    return { approved, returned, rejected };
+    return { approved, returned };
   },
 
   async getPendingApprovalsForManager(managerId: string) {
-    return prisma.goalSheet.findMany({
+    const directReportIds = (
+      await db.reportingManagerRelation.findMany({
+        where: { managerId },
+        select: { employeeId: true },
+      })
+    ).map((r) => r.employeeId);
+
+    return db.goalSheet.findMany({
       where: {
         status: GoalSheetStatus.SUBMITTED,
-        employee: { employeeProfile: { reportingManagerId: managerId } },
+        employeeId: { in: directReportIds },
       },
       include: {
         employee: true,
         cycle: true,
         goals: true,
-        approvalAction: { include: { approver: true } },
+        approvalActions: { include: { actionByUser: true } },
       },
       orderBy: { submittedAt: 'asc' },
     });
   },
 
   async isApproved(sheetId: string): Promise<boolean> {
-    const approval = await prisma.approvalAction.findFirst({
+    const approval = await db.approvalAction.findFirst({
       where: {
         goalSheetId: sheetId,
-        status: ApprovalStatus.APPROVED,
+        actionType: ApprovalActionType.APPROVED,
       },
     });
     return !!approval;

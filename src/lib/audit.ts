@@ -1,4 +1,4 @@
-import { db } from './db';
+import db from './db';
 import { AuditEntityType, AuditActionType } from '@prisma/client';
 
 export interface AuditLogData {
@@ -37,9 +37,9 @@ export async function createAuditLog(data: AuditLogData): Promise<void> {
 
 export async function logGoalSheetSubmit(goalSheetId: string, userId: string): Promise<void> {
   await createAuditLog({
-    entityType: 'GOAL_SHEET',
+    entityType: AuditEntityType.GOAL_SHEET,
     entityId: goalSheetId,
-    actionType: 'SUBMIT',
+    actionType: AuditActionType.SUBMIT,
     userId,
     goalSheetId,
   });
@@ -47,9 +47,9 @@ export async function logGoalSheetSubmit(goalSheetId: string, userId: string): P
 
 export async function logGoalSheetApprove(goalSheetId: string, userId: string): Promise<void> {
   await createAuditLog({
-    entityType: 'GOAL_SHEET',
+    entityType: AuditEntityType.GOAL_SHEET,
     entityId: goalSheetId,
-    actionType: 'APPROVE',
+    actionType: AuditActionType.APPROVE,
     userId,
     goalSheetId,
   });
@@ -57,9 +57,9 @@ export async function logGoalSheetApprove(goalSheetId: string, userId: string): 
 
 export async function logGoalSheetReturn(goalSheetId: string, userId: string): Promise<void> {
   await createAuditLog({
-    entityType: 'GOAL_SHEET',
+    entityType: AuditEntityType.GOAL_SHEET,
     entityId: goalSheetId,
-    actionType: 'RETURN',
+    actionType: AuditActionType.RETURN,
     userId,
     goalSheetId,
   });
@@ -67,9 +67,9 @@ export async function logGoalSheetReturn(goalSheetId: string, userId: string): P
 
 export async function logGoalSheetUnlock(goalSheetId: string, userId: string): Promise<void> {
   await createAuditLog({
-    entityType: 'GOAL_SHEET',
+    entityType: AuditEntityType.GOAL_SHEET,
     entityId: goalSheetId,
-    actionType: 'UNLOCK',
+    actionType: AuditActionType.UNLOCK,
     userId,
     goalSheetId,
   });
@@ -77,9 +77,9 @@ export async function logGoalSheetUnlock(goalSheetId: string, userId: string): P
 
 export async function logGoalCreate(goalSheetId: string, goalId: string, userId: string): Promise<void> {
   await createAuditLog({
-    entityType: 'GOAL',
+    entityType: AuditEntityType.GOAL,
     entityId: goalId,
-    actionType: 'CREATE',
+    actionType: AuditActionType.CREATE,
     userId,
     goalSheetId,
     goalId,
@@ -88,9 +88,9 @@ export async function logGoalCreate(goalSheetId: string, goalId: string, userId:
 
 export async function logGoalUpdate(goalSheetId: string, goalId: string, userId: string, changes: Record<string, any>): Promise<void> {
   await createAuditLog({
-    entityType: 'GOAL',
+    entityType: AuditEntityType.GOAL,
     entityId: goalId,
-    actionType: 'UPDATE',
+    actionType: AuditActionType.UPDATE,
     userId,
     goalSheetId,
     goalId,

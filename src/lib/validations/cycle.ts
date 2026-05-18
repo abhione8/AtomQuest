@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const cycleStatusEnum = z.enum(['DRAFT', 'ACTIVE', 'CLOSED']);
 
-export const createCycleSchema = z.object({
+const cycleObjectSchema = z.object({
   name: z.string().min(3, 'Cycle name must be at least 3 characters').max(200),
   startDate: z.string().datetime('Invalid start date'),
   endDate: z.string().datetime('Invalid end date'),
@@ -14,14 +14,16 @@ export const createCycleSchema = z.object({
   q3EndDate: z.string().datetime().optional(),
   q4StartDate: z.string().datetime().optional(),
   q4EndDate: z.string().datetime().optional(),
-}).refine(
+});
+
+export const createCycleSchema = cycleObjectSchema.refine(
   (data) => new Date(data.startDate) < new Date(data.endDate),
   { message: 'End date must be after start date', path: ['endDate'] }
 );
 
 export type CreateCycleInput = z.infer<typeof createCycleSchema>;
 
-export const updateCycleSchema = createCycleSchema.partial().extend({
+export const updateCycleSchema = cycleObjectSchema.partial().extend({
   cycleId: z.string().cuid('Invalid cycle ID'),
 });
 
